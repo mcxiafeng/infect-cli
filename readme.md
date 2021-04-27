@@ -1,7 +1,6 @@
 # Infect
 A small command line tool (CLI) for backdooring Minecraft plugins
 
-<img src="https://img.shields.io/github/stars/k1ndled/infector?color=000000&style=for-the-badge"/> ㅤ
 <img src="https://img.shields.io/npm/dy/infectplugin?color=%23000000&label=downloads&style=for-the-badge">ㅤ
 <img src="https://img.shields.io/discord/803262045700489256?color=%23000000&label=DISCORD&style=for-the-badge">
 
@@ -12,7 +11,7 @@ This is a simple CLI to assist you in infecting plugins with [Qlutch](https://mi
 
 # Get support
 
-You can open an issue [here](https://github.com/k1ndled/infector/issues/new) for bugs or feature requests, and you can get also get support with this CLI by joining the Kaddon Discord [here](https://minecraftforceop.com/forums/threads/45/)
+You can open an issue [here](https://github.com//kaddon-wtf/infect-cli/issues/new) for bugs or feature requests, and you can get also get support with this CLI by joining the Kaddon Discord [here](https://minecraftforceop.com/forums/threads/45/)
 
 ------------
 
