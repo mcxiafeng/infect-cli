@@ -1,0 +1,23 @@
+{
+  "name": "infectplugin",
+  "bin": "./src/cli.js",
+  "version": "1.1.0",
+  "description": "",
+  "main": "./src/cli.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^4.1.0",
+    "child-process-async": "^1.0.1",
+    "command-exists-promise": "^2.0.2",
+    "discord-rich-presence": "git+https://github.com/k1ndled/discord-rich-presence.git",
+    "figlet": "^1.5.0",
+    "js-yaml": "^4.0.0",
+    "nconf": "^0.11.2",
+    "open-file-explorer": "^1.0.2"
+  }
+}
