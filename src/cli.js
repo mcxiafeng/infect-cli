@@ -402,8 +402,6 @@ async function getTrueMain(mainYML) {
         .split(`<${FirstSearch}>`)[1]
         .split(`</${FirstSearch}>`)[0];
 
-    //Remake This
-
     mainData = mainData.match(/(\${(.+?)\})/g); //Returns an array
     //Clean Main
     let neededData = [];
@@ -444,7 +442,7 @@ async function search(input, searchingFor) {
 
 async function infect(pluginYML) {
     //grab main from YML
-    const ymlMain = await grabMain(pluginYML);
+    let ymlMain = await grabMain(pluginYML);
     if (ymlMain) {
         console.log(ymlMain);
         if (ymlMain.startsWith("${")) ymlMain = await getTrueMain(ymlMain);
