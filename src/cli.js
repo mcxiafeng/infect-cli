@@ -431,8 +431,8 @@ async function search(input, searchingFor) {
         //too lazy to make this automated
         if (input.split(`<${cleaned}>`).length > 1)
             return search(input, cleaned);
-        if (input.split(`<${result.replace("project.")}>`).length > 1)
-            return search(input, cleaned);
+        if (input.split(`<${cleaned.replace("project.")}>`).length > 1)
+            return search(input, cleaned.replace("project."));
         return search(input, result);
     }
     if (trueMain === "") {
@@ -444,7 +444,6 @@ async function infect(pluginYML) {
     //grab main from YML
     let ymlMain = await grabMain(pluginYML);
     if (ymlMain) {
-        console.log(ymlMain);
         if (ymlMain.startsWith("${")) ymlMain = await getTrueMain(ymlMain);
         let pluginMainClass = ymlMain.split(".").pop() + ".java";
         let directories = ymlMain.split(".");
