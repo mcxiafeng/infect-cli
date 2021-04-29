@@ -394,7 +394,6 @@ async function getMainPath(path, classname, directories = []) {
 async function getTrueMain(mainYML) {
     let trueMain = "";
     let base = basePath + slash + "pom.xml";
-    console.log("scanning");
     let FirstSearch = mainYML.split("${")[1].split("}")[0];
     console.log("searching: " + FirstSearch);
     const data = readFileSync(base, { encoding: "utf8", flag: "r" });
@@ -402,14 +401,12 @@ async function getTrueMain(mainYML) {
         .split(`<${FirstSearch}>`)[1]
         .split(`</${FirstSearch}>`)[0];
     mainData = mainData.match(/project.(.*)\}/g)[0].split(".");
-    console.log(mainData);
     let neededData = [];
     let amt = 0;
     for (const str of mainData) {
         if (amt % 2) neededData.push(str.replace("}", ""));
         amt++;
     }
-    console.log(neededData);
     for (let search in neededData) {
         search = parseInt(search);
         trueMain +=
@@ -421,7 +418,6 @@ async function getTrueMain(mainYML) {
                       .split(`<${neededData[search]}>`)[1]
                       .split(`</${neededData[search]}>`)[0] + ".";
     }
-    console.log(trueMain);
     return trueMain;
 }
 async function infect(pluginYML) {
@@ -431,15 +427,12 @@ async function infect(pluginYML) {
     let ymlMain = doc["main"];
     if (ymlMain) {
         if (ymlMain.startsWith("${")) ymlMain = await getTrueMain(ymlMain);
-        console.log(ymlMain);
         let pluginMainClass = ymlMain.split(".").pop() + ".java";
         let directories = ymlMain.split(".");
         directories.pop();
         await getMainPath(basePath, pluginMainClass, directories);
-        console.log(mainPath);
         if (!mainPath) return console.log("Couldn't find main class...");
         let mainClassName = mainPath.split(slash).pop();
-        console.log(mainClassName);
         console.log(
             `The main class in ${pluginName} is ${chalk.hex("#c93849")(
                 mainClassName
