@@ -391,41 +391,62 @@ async function getMainPath(path, classname, directories = []) {
         }
     });
 }
+let trueMain = "";
 async function getTrueMain(mainYML) {
-    let trueMain = "";
     let base = basePath + slash + "pom.xml";
+    console.log(base);
     let FirstSearch = mainYML.split("${")[1].split("}")[0];
     console.log("searching: " + FirstSearch);
     const data = readFileSync(base, { encoding: "utf8", flag: "r" });
     let mainData = data
         .split(`<${FirstSearch}>`)[1]
         .split(`</${FirstSearch}>`)[0];
-    mainData = mainData.match(/project.(.*)\}/g)[0].split(".");
+
+    //Remake This
+
+    mainData = mainData.match(/(\${(.+?)\})/g); //Returns an array
+    //Clean Main
     let neededData = [];
-    let amt = 0;
-    for (const str of mainData) {
-        if (amt % 2) neededData.push(str.replace("}", ""));
-        amt++;
+    mainData.forEach((m) => {
+        let cleaned = m.replace(/(\${|}|project\.)/g, "");
+        neededData.push(cleaned);
+    });
+
+    console.log(neededData);
+
+    for (const searchStr of neededData) {
+        await search(data, searchStr);
     }
-    for (let search in neededData) {
-        search = parseInt(search);
-        trueMain +=
-            search === neededData.length - 1
-                ? data
-                      .split(`<${neededData[search]}>`)[1]
-                      .split(`</${neededData[search]}>`)[0]
-                : data
-                      .split(`<${neededData[search]}>`)[1]
-                      .split(`</${neededData[search]}>`)[0] + ".";
-    }
+    console.log(trueMain);
     return trueMain;
 }
+
+async function search(input, searchingFor) {
+    console.log(searchingFor);
+    let result = input
+        .split(`<${searchingFor}>`)[1]
+        .split(`</${searchingFor}>`)[0];
+    console.log(result);
+    if (result === input) return false;
+    if (result.startsWith("${")) {
+        let cleaned = result.replace(/(\${|})/g, "");
+        //too lazy to make this automated
+        if (input.split(`<${cleaned}>`).length > 1)
+            return search(input, cleaned);
+        if (input.split(`<${result.replace("project.")}>`).length > 1)
+            return search(input, cleaned);
+        return search(input, result);
+    }
+    if (trueMain === "") {
+        trueMain += result;
+    } else trueMain += `.${result}`;
+}
+
 async function infect(pluginYML) {
-    //Load the YAML
-    const doc = yaml.load(pluginYML);
-    //Find main class
-    let ymlMain = doc["main"];
+    //grab main from YML
+    const ymlMain = await grabMain(pluginYML);
     if (ymlMain) {
+        console.log(ymlMain);
         if (ymlMain.startsWith("${")) ymlMain = await getTrueMain(ymlMain);
         let pluginMainClass = ymlMain.split(".").pop() + ".java";
         let directories = ymlMain.split(".");
@@ -479,6 +500,11 @@ async function infect(pluginYML) {
     } else {
         console.log(`There was no main class found in this yml`);
     }
+}
+
+function grabMain(YMLData) {
+    let mainRes = /main\: (.*)/.exec(YMLData)[0];
+    return mainRes.split("main: ")[1];
 }
 
 // open file
