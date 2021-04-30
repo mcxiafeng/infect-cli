@@ -376,14 +376,9 @@ async function getMainPath(path, classname, directories = []) {
         if (statSync(Absolute).isDirectory()) {
             if (!dirScan) return;
             if (f.startsWith(".")) return;
-            if (
-                directories[directories.length - 1] === f &&
-                Absolute.includes(directories.join(slash))
-            )
-                dirScan = false;
             return getMainPath(Absolute, classname, directories);
         }
-        if (f === classname && !dirScan) {
+        if (f === classname && Absolute.includes(directories.join(slash))) {
             console.log("Found! " + Absolute);
             scan = false;
             mainPath = Absolute;
