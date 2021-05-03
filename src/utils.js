@@ -33,7 +33,7 @@ module.exports = {
         }
         return color;
     },
-    startup: async function () {
+    startup: async function (url) {
         help = process.argv.includes("--help") || process.argv.includes("-h");
         credits =
             process.argv.includes("-c") || process.argv.includes("--credits");
@@ -66,11 +66,12 @@ module.exports = {
             console.log(chalk.hex("#c93849")(data));
         });
         process.title = "loading infect...";
-        let dst = process.argv.filter((m) => !m.includes("--"))[2];
+        dst = process.argv.filter((m) => !m.includes("--"))[2];
+        if (url) dst = url;
         // init path
         if (dst) {
             // Git repo
-            if (dst.startsWith("https://") && dst.endsWith(".git")) {
+            if (dst.startsWith("https://github.com/")) {
                 if (await commandExists("git")) {
                     console.log("Pulling repo....");
                     done = false;
@@ -84,7 +85,7 @@ module.exports = {
                     await mkdirSync(TMP);
                     //clone the repo
                     await exec(
-                        `cd ${TMP} && git clone ${process.argv[2]}`,
+                        `cd ${TMP} && git clone ${dst}`,
                         (err, out, serr) => {
                             console.log(
                                 `Finished in ${
@@ -105,10 +106,6 @@ module.exports = {
             } else if (fsRegex.exec(dst)) {
                 basePath = dst;
                 done = true;
-                //url that doesn't end with git
-            } else if (dst.startsWith("https://")) {
-                return console.log("Malformed URI");
-                // If arg is supplied but fits no criteria, interpret as a relative location
             } else {
                 basePath = pathM.join(process.cwd(), dst);
                 done = true;
@@ -122,6 +119,7 @@ module.exports = {
             await setupConfig();
         }
         if (get("discordRPC")) {
+            client = require("discord-rich-presence")("829742157588856912");
             client.updatePresence({
                 state: statuses[Math.floor(Math.random() * statuses.length)],
                 details: "currently initalizing...",

@@ -13,7 +13,7 @@ const fs = require("fs");
 const yaml = require("js-yaml");
 global.chalk = require("chalk");
 global.figlet = require("figlet");
-global.client = require("discord-rich-presence")("829742157588856912");
+global.client;
 const { get } = require("./config");
 const { exec } = require("child-process-async");
 let slash = "/";
@@ -27,6 +27,7 @@ global.basePath; //New var for keeping track of the location of pom.xml and Grad
 
 global.done = false;
 auto = process.argv.includes("--auto");
+explorer = !process.argv.includes("-noopen");
 global.rpcConnected = false;
 let buildType = "Unknown";
 let pluginName;
@@ -80,6 +81,7 @@ let ymls = {};
 let interval = setInterval(() => {
     // if path was found
     if (done) {
+        console.log("q");
         if (global.basePath === undefined) {
             console.log("Could not find a project, add -h for help!");
             process.exit();
@@ -325,8 +327,9 @@ async function Inject(mainPath) {
                             console.log("Overwriting file...");
                             fs.copyFileSync(`${TMP}${slash}inj.java`, mainPath);
                             console.log("Cleaning up..");
-                            fs.rmdirSync(`${TMP}${slash}inj.java`, {
+                            fs.unlinkSync(`${TMP}${slash}inj.java`, {
                                 recursive: true,
+                                force: true,
                             });
                             console.log("Finished.");
                             if (!buildType !== "Unknown") comp(basePath);
@@ -513,12 +516,24 @@ function openFile(mainPath) {
             if (vsc) {
                 utils.VSCOpenFile(mainPath, line + 1, 3);
             } else {
-                openExplorer(mainPath, (err) => {
-                    if (err) return console.log(err);
-                });
+                if (explorer)
+                    return openExplorer(mainPath, (err) => {
+                        if (err) return console.log(err);
+                    });
+                return;
             }
         })
         .catch((e) => console.log(e));
+}
+
+async function fixGradle(path, data) {
+    console.log("Fixing gradle....");
+    data = data
+        .replace(/(.*)id 'com.github.hierynomus.license'(.*)/g, "")
+        .replace(/^license {([\s\S]*?)}/gm, "")
+        .replace(/, licenseMain/g, "");
+    await fs.writeFileSync(path, data);
+    return true;
 }
 
 async function build(type, path) {
@@ -526,14 +541,28 @@ async function build(type, path) {
     let TMP = process.env.TMP || "/tmp";
     switch (type.toLowerCase()) {
         case "gradle":
+            let gradleP = basePath + slash + "build.gradle";
+            if (!fs.existsSync(gradleP))
+                gradleP = fs.readdirSync(basePath).forEach((e) => {
+                    if (e.startsWith("build.gradle"))
+                        return basePath + slash + e;
+                });
+            let gradleData = fs.readFileSync(gradleP, { encoding: "utf-8" });
+            if (gradleData.match(/id 'com.github.hierynomus.license'(.*)/)) {
+                await fixGradle(gradleP, gradleData);
+            }
             console.log("Building...... please dont exit.");
             console.log("If its your first time running, it may take a while");
             console.log(
                 "If it seems extraordinarily slow, exit and try running gradlew build in " +
                     path
             );
+            console.log(
+                "Gradle is bipolar and annoying to fix, so just try it urself or go to maven"
+            );
+
             exec(
-                `cd "${path}" && gradlew build`,
+                `cd "${path}" && git submodule update --init && gradlew build -dist`,
                 async (err, stdout, stderr) => {
                     if (!stdout.includes("BUILD SUCCESSFUL")) {
                         console.log("Console Output:");
@@ -553,28 +582,32 @@ async function build(type, path) {
 
                         if (!fs.existsSync(dstn)) fs.mkdirSync(dstn);
                         console.log("mv");
-                        readdirSync(basePath + slash + "jars").forEach(
-                            (File) => {
-                                const newPth = join(
-                                    basePath + slash + "jars",
-                                    File
-                                );
-                                if (newPth.endsWith("jar"))
-                                    fs.copyFileSync(
-                                        newPth,
-                                        dstn + slash + File
-                                    );
-                            }
-                        );
+                        let buildDirectory = (await fs.existsSync(
+                            basePath + slash + "jars"
+                        ))
+                            ? basePath + slash + "jars"
+                            : basePath + slash + "build" + slash + "libs";
+                        console.log(buildDirectory);
+                        readdirSync(buildDirectory).forEach((File) => {
+                            console.log(File);
+                            const newPth = join(buildDirectory, File);
+                            console.log(newPth);
+                            if (newPth.endsWith("jar"))
+                                fs.copyFileSync(newPth, dstn + slash + File);
+                        });
                         console.log("cleaning up");
-                        fs.rmdirSync(TMP + slash + "Infect-Git", {
+                        fs.rmdirSync(basePath, {
                             recursive: true,
+                            force: true,
                         });
                         console.log("Opening location");
-                        openExplorer(dstn);
+                        if (explorer) return openExplorer(dstn);
+                        return;
                     } else {
                         console.log("Opening location");
-                        openExplorer(basePath + slash + "jars");
+                        if (explorer)
+                            return openExplorer(basePath + slash + "jars");
+                        return;
                     }
                 }
             );
@@ -586,6 +619,10 @@ async function build(type, path) {
                 "If it seems extraordinarily slow, exit and try running mvn clean verify in " +
                     dst
             );
+            let pomD = fs.readFileSync(basePath + slash + "pom.xml", {
+                encoding: "utf-8",
+            });
+
             exec(
                 `cd "${dst}" && mvn clean verify -Dmaven.deploy.skip=true`,
                 async (err, stdout, stderr) => {
@@ -620,12 +657,18 @@ async function build(type, path) {
                             }
                         );
                         console.log("cleaning up");
-                        //fs.rmdirSync(TMP + slash + "Infect-Git", {recursive: true,});
+                        fs.rmdirSync(basePath, {
+                            recursive: true,
+                            force: true,
+                        });
                         console.log("Opening location");
-                        openExplorer(dstn);
+                        if (explorer) return openExplorer(dstn);
+                        return;
                     } else {
                         console.log("Opening location");
-                        openExplorer(dst + slash + "target");
+                        if (explorer)
+                            return openExplorer(dst + slash + "target");
+                        return;
                     }
                 }
             );
@@ -635,6 +678,7 @@ async function build(type, path) {
             if (await fs.existsSync(TMP + slash + "Infect-Git"))
                 fs.rmdirSync(TMP + slash + "Infect-Git", {
                     recursive: true,
+                    force: true,
                 });
     }
 }
