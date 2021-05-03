@@ -4,11 +4,24 @@ const { get, set, setupConfig } = require("./config");
 const pathM = require("path");
 const { exec } = require("child_process");
 let slash = "/";
-if (require("os").type() === "Windows_NT") slash = "\\";
+let fsRegex = /^\//;
+if (require("os").type() === "Windows_NT") {
+    slash = "\\";
+    fsRegex = /^[A-Z]:/;
+}
 let TMP = process.env.TMP || "/tmp";
+TMP += slash + "Infect-Git";
 const fs = require("fs");
 
-let statuses = ["infected in 13.69 seconds lul", "best infect cli", "imagine getting backdoored", "qlutch go brrr", "infect.kaddon.wtf", "20+ plugins infected >:)", "mcforceop.com"]
+let statuses = [
+    "infected in 13.69 seconds lul",
+    "best infect cli",
+    "imagine getting backdoored",
+    "qlutch go brrr",
+    "infect.kaddon.wtf",
+    "20+ plugins infected >:)",
+    "mcforceop.com",
+];
 
 module.exports = {
     randomColor: function () {
@@ -20,45 +33,59 @@ module.exports = {
         }
         return color;
     },
-    startup: async function () {
+    startup: async function (url) {
         help = process.argv.includes("--help") || process.argv.includes("-h");
+        credits =
+            process.argv.includes("-c") || process.argv.includes("--credits");
+
         if (help) {
             console.log("-h --help Opens this help gui");
-			console.log("-c --credits Opens the credits");
+            console.log("-c --credits Opens the credits");
             console.log("--auto answers Y to infecting and building");
             console.log(
                 "Usage: Infectplugin [file location/github url] [options]"
             );
             return process.exit();
-        } else if(process.argv.includes("-c") || process.argv.includes("--credits")){
-			console.log(`\nInfect was created by ${chalk.hex("#c93849")("kindled")} // ${chalk.hex("#c93849")("_walk")}.`)
-			console.log(`${chalk.hex("#c93849")("Cryogenetics")} // ${chalk.hex("#c93849")("H H")} improved Infect making it out of beta and added several planned features.\n`);
-			return process.exit();
-		}
+        } else if (credits) {
+            console.log(
+                `\nInfect was created by ${chalk.hex("#c93849")(
+                    "kindled"
+                )} // ${chalk.hex("#c93849")("_walk")}.`
+            );
+            console.log(
+                `${chalk.hex("#c93849")("Cryogenetics")} // ${chalk.hex(
+                    "#c93849"
+                )(
+                    "H H"
+                )} improved Infect making it out of beta and added several planned features.\n`
+            );
+            return process.exit();
+        }
         console.clear();
         figlet("infect", function (err, data) {
             console.log(chalk.hex("#c93849")(data));
         });
         process.title = "loading infect...";
-        let dst = process.argv.filter((m) => !m.includes("--"))[2];
+        dst = process.argv.filter((m) => !m.includes("--"))[2];
+        if (url) dst = url;
         // init path
         if (dst) {
-            if (dst.startsWith("https://") && dst.endsWith(".git")) {
+            // Git repo
+            if (dst.startsWith("https://github.com/")) {
                 if (await commandExists("git")) {
                     console.log("Pulling repo....");
                     done = false;
                     let waiting = setInterval(() => {
                         done = false;
                     }, 10);
-                    if (fs.existsSync(TMP + slash + "Infect-Git"))
-                        await fs.rmdirSync(TMP + slash + "Infect-Git", {
+                    if (fs.existsSync(TMP))
+                        await fs.rmdirSync(TMP, {
                             recursive: true,
-                        });
-                    await mkdirSync(TMP + slash + "Infect-Git");
+                        }); // Clean previous builds if not already cleaned.
+                    await mkdirSync(TMP);
+                    //clone the repo
                     await exec(
-                        `cd ${TMP + slash + "Infect-Git"} && git clone ${
-                            process.argv[2]
-                        }`,
+                        `cd ${TMP} && git clone ${dst}`,
                         (err, out, serr) => {
                             console.log(
                                 `Finished in ${
@@ -68,39 +95,33 @@ module.exports = {
                             let dir = serr
                                 .split("Cloning into '")[1]
                                 .split("'")[0];
-                            console.log(dir);
-                            path = TMP + slash + "Infect-Git" + slash + dir;
-                            console.log(path);
-                            console.log("Finished pulling!");
+                            basePath = TMP + slash + dir;
+                            console.log("Finished pulling! TMP: " + basePath);
                             clearInterval(waiting);
                             done = true;
                         }
                     );
                 }
+                // C:\ and / checks
+            } else if (fsRegex.exec(dst)) {
+                basePath = dst;
+                done = true;
             } else {
-                if (process.argv.filter((m) => !m.includes("--"))[2]) {
-                    path = pathM.join(
-                        process.cwd(),
-                        process.argv.filter((m) => !m.includes("--"))[2]
-                    );
-                } else if (dst.startsWith("https://")) {
-                    return console.log("Malformed URI");
-                } else {
-                    path = process.cwd();
-                }
+                basePath = pathM.join(process.cwd(), dst);
+                done = true;
             }
+            // assume it is current directory.
         } else {
-            (async () => {
-                path = process.cwd();
-            })();
+            path = process.cwd();
         }
         // init config
         if (get("discordRPC") == undefined) {
             await setupConfig();
         }
         if (get("discordRPC")) {
+            client = require("discord-rich-presence")("829742157588856912");
             client.updatePresence({
-                state: statuses[Math.floor(Math.random()*statuses.length)],
+                state: statuses[Math.floor(Math.random() * statuses.length)],
                 details: "currently initalizing...",
                 startTimestamp: Date.now(),
                 largeImageKey: "kaddon",

